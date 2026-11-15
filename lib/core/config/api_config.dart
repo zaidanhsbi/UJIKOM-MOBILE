@@ -14,7 +14,7 @@ class ApiConfig {
   static const String offlineBaseUrl = 'http://127.0.0.1:8000/api';
 
   /// URL server online / produksi
-  static const String onlineBaseUrl = 'https://api.binoexam.sch.id/api';
+  static const String onlineBaseUrl = 'http://apibinoexam.smkn1sumedang,sch.id/api';
 
   static const String _envBaseUrl = String.fromEnvironment('API_BASE_URL');
 
