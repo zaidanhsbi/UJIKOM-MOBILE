@@ -11,10 +11,10 @@ class ApiConfig {
 
   /// URL server lokal / offline (127.0.0.1 untuk Windows/Web atau HP fisik via `adb reverse tcp:8000 tcp:8000`;
   /// jika pakai HP fisik via Wi-Fi, ganti ke IP LAN laptop/server lokal seperti http://192.168.1.10:8000/api)
-  static const String offlineBaseUrl = 'http://127.0.0.1:8000/api';
+  static const String offlineBaseUrl = 'http://10.209.133.99:8000/api';
 
   /// URL server online / produksi
-  static const String onlineBaseUrl = 'http://apibinoexam.smkn1sumedang,sch.id/api';
+  static const String onlineBaseUrl = 'http://apibinoexam.smkn1sumedang.sch.id/api';
 
   static const String _envBaseUrl = String.fromEnvironment('API_BASE_URL');
 
