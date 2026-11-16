@@ -106,6 +106,7 @@ class QuestionStemCard extends StatelessWidget {
               borderRadius: BorderRadius.circular(AppTokens.radiusMd),
               child: CachedNetworkImage(
                 imageUrl: ApiConfig.resolveImageUrl(question.image!),
+                memCacheWidth: 800,
                 placeholder: (_, _) => const SizedBox(
                   height: 140,
                   child: Center(child: CircularProgressIndicator()),
@@ -157,8 +158,9 @@ class QuestionAnswerSection extends StatelessWidget {
       case 'jd':
         return _buildMatchingOptions();
       case 'ur':
+        return _buildOrderingOptions();
       default:
-        return _buildEssayInput();
+        return const SizedBox.shrink();
     }
   }
 
@@ -366,23 +368,99 @@ class QuestionAnswerSection extends StatelessWidget {
     );
   }
 
-  /// Membangun kolom teks bebas untuk soal Uraian/Isian (UR).
-  /// Membangun kolom teks untuk soal uraian.
-  Widget _buildEssayInput() {
-    return CustomCard(
-      child: TextFormField(
-        controller: essayController,
-        maxLines: 6,
-        onChanged: onAnswerChanged,
-        style: const TextStyle(
-          fontSize: AppTokens.textMd,
-          color: AppTokens.text,
+  /// Membangun daftar kartu item yang dapat diurutkan naik/turun untuk soal Urutan (UR).
+  Widget _buildOrderingOptions() {
+    final items = (currentAnswer is List && (currentAnswer as List).isNotEmpty)
+        ? (currentAnswer as List).map((e) => e.toString()).toList()
+        : List<String>.from(question.orderItems);
+
+    if (items.isEmpty) {
+      return const Text(
+        'Belum ada daftar item untuk diurutkan.',
+        style: TextStyle(color: AppTokens.textSecondary),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Padding(
+          padding: EdgeInsets.only(bottom: AppTokens.spaceSm),
+          child: Text(
+            'Urutkan item dari atas ke bawah menggunakan tombol panah:',
+            style: TextStyle(
+              fontSize: AppTokens.textSm,
+              fontWeight: FontWeight.w600,
+              color: AppTokens.textSecondary,
+            ),
+          ),
         ),
-        decoration: const InputDecoration(
-          hintText: 'Tulis jawaban uraian Anda di sini...',
-          border: InputBorder.none,
-        ),
-      ),
+        ...List.generate(items.length, (index) {
+          final item = items[index];
+          return Padding(
+            padding: const EdgeInsets.only(bottom: AppTokens.spaceSm),
+            child: CustomCard(
+              child: Row(
+                children: [
+                  Container(
+                    width: 28,
+                    height: 28,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: AppTokens.softBlue,
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: Text(
+                      '${index + 1}',
+                      style: const TextStyle(
+                        fontSize: AppTokens.textSm,
+                        fontWeight: FontWeight.bold,
+                        color: AppTokens.primary,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: AppTokens.spaceMd),
+                  Expanded(
+                    child: MathRichText(
+                      text: item,
+                      fontSize: AppTokens.textMd,
+                      color: AppTokens.text,
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(LucideIcons.arrowUp, size: 20),
+                    color: index > 0 ? AppTokens.primary : AppTokens.textDisabled,
+                    onPressed: index > 0
+                        ? () {
+                            final next = List<String>.from(items);
+                            final tmp = next[index - 1];
+                            next[index - 1] = next[index];
+                            next[index] = tmp;
+                            onAnswerChanged(next);
+                          }
+                        : null,
+                  ),
+                  IconButton(
+                    icon: const Icon(LucideIcons.arrowDown, size: 20),
+                    color: index < items.length - 1
+                        ? AppTokens.primary
+                        : AppTokens.textDisabled,
+                    onPressed: index < items.length - 1
+                        ? () {
+                            final next = List<String>.from(items);
+                            final tmp = next[index + 1];
+                            next[index + 1] = next[index];
+                            next[index] = tmp;
+                            onAnswerChanged(next);
+                          }
+                        : null,
+                  ),
+                ],
+              ),
+            ),
+          );
+        }),
+      ],
     );
   }
 }

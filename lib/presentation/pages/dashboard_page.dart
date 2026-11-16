@@ -23,6 +23,8 @@ class DashboardPage extends ConsumerStatefulWidget {
 }
 
 class _DashboardPageState extends ConsumerState<DashboardPage> {
+  int? _downloadingExamId;
+
   /// Memuat daftar jadwal ujian dari server saat halaman pertama kali dibuka.
   /// Memuat daftar ujian saat halaman dashboard pertama kali dibuka.
   @override
@@ -81,6 +83,19 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
   /// Menangani klik tombol mulai ujian dengan membuka dialog token terlebih dahulu.
   /// Menangani ketukan tombol mulai ujian dengan memeriksa status Screen Pinning terlebih dahulu.
   Future<void> _handleExamStartTap(StudentExamItem exam) async {
+    final repo = ref.read(examRepositoryProvider);
+    if (repo.hasPendingSync(exam.id)) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Ujian ini sudah selesai dikerjakan dan menunggu sinkronisasi (Pending Sync).',
+          ),
+          backgroundColor: AppTokens.warning,
+        ),
+      );
+      return;
+    }
     await _showTokenDialog(exam);
   }
 
@@ -106,9 +121,17 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
     final pinned = await _ensureScreenPinned();
     if (!pinned || !mounted) return;
 
-    final ok = await ref
-        .read(activeExamProvider.notifier)
-        .startOrResumeExam(exam.id, confirmedToken);
+    setState(() => _downloadingExamId = exam.id);
+    bool ok = false;
+    try {
+      ok = await ref
+          .read(activeExamProvider.notifier)
+          .startOrResumeExam(exam.id, confirmedToken);
+    } finally {
+      if (mounted) {
+        setState(() => _downloadingExamId = null);
+      }
+    }
 
     if (!mounted) return;
 
@@ -174,7 +197,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
       body: Column(
         children: [
           const DeviceStatusBar(),
-          if (isPinned && examState.pendingSyncCount == 0)
+          if (isPinned)
             Padding(
               padding: const EdgeInsets.fromLTRB(
                 AppTokens.spaceLg,
@@ -213,6 +236,8 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                       icon: LucideIcons.checkCircle2,
                       color: AppTokens.success,
                       textColor: AppTokens.navy,
+                      onDismiss: () =>
+                          ref.read(examListProvider.notifier).dismissSyncNotice(),
                     ),
                     const SizedBox(height: AppTokens.spaceLg),
                   ],
@@ -222,6 +247,8 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                       icon: LucideIcons.alertTriangle,
                       color: AppTokens.error,
                       textColor: AppTokens.error,
+                      onDismiss: () =>
+                          ref.read(examListProvider.notifier).dismissError(),
                     ),
                     const SizedBox(height: AppTokens.spaceLg),
                   ],
@@ -256,6 +283,8 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                         padding: const EdgeInsets.only(bottom: AppTokens.spaceMd),
                         child: ExamCardWidget(
                           exam: exam,
+                          isPendingSync: ref.read(examRepositoryProvider).hasPendingSync(exam.id),
+                          isDownloading: _downloadingExamId == exam.id,
                           onStart: () => _handleExamStartTap(exam),
                         ),
                       ),
@@ -277,12 +306,14 @@ class _StatusNoticeCard extends StatelessWidget {
     required this.icon,
     required this.color,
     required this.textColor,
+    this.onDismiss,
   });
 
   final String message;
   final IconData icon;
   final Color color;
   final Color textColor;
+  final VoidCallback? onDismiss;
 
   /// Membangun tampilan kartu pesan status.
   @override
@@ -292,6 +323,17 @@ class _StatusNoticeCard extends StatelessWidget {
       borderColor: color,
       child: Row(
         children: [
+          if (onDismiss != null) ...[
+            InkWell(
+              onTap: onDismiss,
+              borderRadius: BorderRadius.circular(16),
+              child: Padding(
+                padding: const EdgeInsets.all(4),
+                child: Icon(LucideIcons.x, size: 18, color: textColor),
+              ),
+            ),
+            const SizedBox(width: AppTokens.spaceXs),
+          ],
           Icon(icon, size: 24, color: color),
           const SizedBox(width: AppTokens.spaceSm),
           Expanded(

@@ -86,18 +86,49 @@ class ExamListNotifier extends StateNotifier<ExamListState> {
     }
   }
 
+  /// Menutup notifikasi sinkronisasi.
+  void dismissSyncNotice() {
+    state = state.copyWith(clearSyncNotice: true);
+  }
+
+  /// Menutup pesan error.
+  void dismissError() {
+    state = state.copyWith(clearError: true);
+  }
+
   /// Mengirimkan ulang seluruh ujian berstatus Pending Sync ke server.
   Future<void> syncPendingNow() async {
-    final synced = await _repo.retryPendingSyncs();
-    final remaining = _repo.getPendingSyncs().length;
-    if (synced > 0) {
+    state = state.copyWith(clearError: true, clearSyncNotice: true);
+    try {
+      final synced = await _repo.retryPendingSyncs();
+      final remaining = _repo.getPendingSyncs().length;
+      if (synced > 0) {
+        state = state.copyWith(
+          pendingSyncCount: remaining,
+          syncNotice: '$synced ujian Pending Sync berhasil dikirim ke server.',
+        );
+        await loadExams();
+      } else if (remaining > 0) {
+        state = state.copyWith(
+          pendingSyncCount: remaining,
+          error: 'Gagal sinkronisasi ke server. Pastikan koneksi aktif lalu coba lagi.',
+        );
+      } else {
+        state = state.copyWith(
+          pendingSyncCount: 0,
+          syncNotice: 'Antrean sinkronisasi sudah dibersihkan.',
+        );
+        await loadExams();
+      }
+    } catch (e) {
+      final remaining = _repo.getPendingSyncs().length;
       state = state.copyWith(
         pendingSyncCount: remaining,
-        syncNotice: '$synced ujian Pending Sync berhasil dikirim ke server.',
+        error: ApiClient.extractErrorMessage(
+          e,
+          fallback: 'Gagal sinkronisasi ke server. Pastikan koneksi aktif lalu coba lagi.',
+        ),
       );
-      await loadExams();
-    } else {
-      state = state.copyWith(pendingSyncCount: remaining);
     }
   }
 
@@ -335,7 +366,7 @@ class ActiveExamNotifier extends StateNotifier<ActiveExamState> {
       durationSeconds: usedSeconds,
     );
 
-    state = state.copyWith(submitting: false);
+    state = const ActiveExamState();
     return result;
   }
 

@@ -1,4 +1,6 @@
 import 'package:dio/dio.dart';
+import 'package:flutter_cache_manager/flutter_cache_manager.dart';
+import '../../core/config/api_config.dart';
 import '../../domain/entities/exam_models.dart';
 import '../datasources/api_client.dart';
 import '../datasources/exam_local_storage.dart';
@@ -32,6 +34,9 @@ class ExamRepository {
 
   /// Memulai ujian dengan [token] dan mengunduh paket soal ke penyimpanan lokal.
   Future<ExamPackageData> startAndDownloadExam(int examId, String token) async {
+    if (_localStorage.hasPendingSync(examId)) {
+      throw Exception('Ujian ini sudah selesai dikerjakan dan menunggu sinkronisasi.');
+    }
     try {
       final response = await _apiClient.dio.post(
         '/siswa/exams/$examId/start',
@@ -39,6 +44,7 @@ class ExamRepository {
       );
       final pkg = ExamPackageData.fromJson(response.data as Map<String, dynamic>);
       await _localStorage.saveExamPackage(pkg);
+      await _precacheExamImages(pkg);
       return pkg;
     } on DioException catch (e) {
       // Jika jaringan terputus tapi paket sudah pernah diunduh lokal, gunakan lokal
@@ -55,8 +61,44 @@ class ExamRepository {
   ExamPackageData? getCachedPackage(int examId) =>
       _localStorage.getExamPackage(examId);
 
-  /// Mengambil ID ujian aktif yang terakhir disimpan secara lokal.
-  int? getActiveExamId() => _localStorage.getActiveExamId();
+  /// Mengunduh dan menyimpan seluruh gambar soal & opsi ke cache lokal agar siap offline.
+  Future<void> _precacheExamImages(ExamPackageData pkg) async {
+    final urls = <String>{};
+    for (final q in pkg.questions) {
+      if (q.image != null && q.image!.isNotEmpty) {
+        urls.add(ApiConfig.resolveImageUrl(q.image!));
+      }
+      for (final opt in q.options) {
+        if (opt.image != null && opt.image!.isNotEmpty) {
+          urls.add(ApiConfig.resolveImageUrl(opt.image!));
+        }
+      }
+    }
+    if (urls.isEmpty) return;
+
+    final cache = DefaultCacheManager();
+    await Future.wait(
+      urls.map((url) async {
+        try {
+          await cache.downloadFile(url);
+        } catch (_) {
+          // Abaikan jika salah satu gambar gagal diunduh saat pre-cache
+        }
+      }),
+    );
+  }
+
+  /// Mengambil ID ujian aktif yang terakhir disimpan secara lokal (jika belum Pending Sync).
+  int? getActiveExamId() {
+    final activeId = _localStorage.getActiveExamId();
+    if (activeId != null && _localStorage.hasPendingSync(activeId)) {
+      return null;
+    }
+    return activeId;
+  }
+
+  /// Memeriksa apakah [examId] sudah selesai dan sedang menunggu sinkronisasi.
+  bool hasPendingSync(int examId) => _localStorage.hasPendingSync(examId);
 
   /// Mengambil peta jawaban lokal siswa untuk [examId].
   Map<int, ExamAnswerEntry> getLocalAnswers(int examId) =>
@@ -142,8 +184,14 @@ class ExamRepository {
           await _localStorage.clearExamData(examId);
           syncedCount++;
         }
-      } catch (_) {
-        // Tetap simpan di Pending Sync untuk dicoba lagi saat koneksi stabil
+      } on DioException catch (e) {
+        final status = e.response?.statusCode;
+        // Jika ujian sudah tidak ada di server (404), bersihkan agar tidak nyangkut selamanya
+        if (status == 404) {
+          await _localStorage.clearExamData(examId);
+        } else {
+          rethrow;
+        }
       }
     }
     return syncedCount;

@@ -11,15 +11,22 @@ class ExamCardWidget extends StatelessWidget {
     super.key,
     required this.exam,
     required this.onStart,
+    this.isPendingSync = false,
+    this.isDownloading = false,
   });
 
   final StudentExamItem exam;
   final VoidCallback? onStart;
+  final bool isPendingSync;
+  final bool isDownloading;
 
   /// Membangun tampilan kartu ujian dengan status berlangsung atau selesai.
   @override
   Widget build(BuildContext context) {
-    final canStart = !exam.alreadySubmitted && exam.status == 'ongoing';
+    final canStart = !exam.alreadySubmitted &&
+        !isPendingSync &&
+        !isDownloading &&
+        exam.status == 'ongoing';
 
     return CustomCard(
       child: Column(
@@ -111,6 +118,19 @@ class ExamCardWidget extends StatelessWidget {
               label: 'Sudah Dikumpulkan',
               icon: LucideIcons.checkCircle,
               variant: CustomButtonVariant.secondary,
+              onPressed: null,
+            )
+          else if (isPendingSync)
+            const CustomButton(
+              label: 'Selesai (Menunggu Sync)',
+              icon: LucideIcons.clock,
+              variant: CustomButtonVariant.secondary,
+              onPressed: null,
+            )
+          else if (isDownloading)
+            const CustomButton(
+              label: 'Mendownload Soal...',
+              loading: true,
               onPressed: null,
             )
           else

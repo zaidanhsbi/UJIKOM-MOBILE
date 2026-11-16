@@ -39,7 +39,10 @@ class ApiConfig {
     if (path.startsWith('http://') || path.startsWith('https://')) {
       return path;
     }
-    final normalized = path.startsWith('/') ? path : '/$path';
+    var normalized = path.startsWith('/') ? path : '/$path';
+    if (!normalized.startsWith('/storage/')) {
+      normalized = '/storage$normalized';
+    }
     return '$originUrl$normalized';
   }
 }

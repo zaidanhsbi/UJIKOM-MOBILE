@@ -1,7 +1,9 @@
 import 'dart:async';
+import 'dart:io';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
+import '../../core/config/api_config.dart';
 import '../../core/services/device_status_service.dart';
 import '../../core/theme/app_tokens.dart';
 
@@ -32,25 +34,44 @@ class _DeviceStatusBarState extends State<DeviceStatusBar> {
     _loadBrightness();
     _batteryTimer = Timer.periodic(
       const Duration(seconds: 15),
-      (_) => _refreshBattery(),
+      (_) {
+        _refreshBattery();
+        _updateConnectionStatus();
+      },
     );
   }
 
   /// Memeriksa status koneksi awal dan mendengarkan perubahan jaringan secara real-time.
-  /// Memeriksa status jaringan awal dan memantau perubahannya.
   Future<void> _initConnectivity() async {
-    final results = await Connectivity().checkConnectivity();
-    if (!mounted) return;
-    setState(() {
-      _isOnline = results.any((r) => r != ConnectivityResult.none);
+    await _updateConnectionStatus();
+    _connSub = Connectivity().onConnectivityChanged.listen((_) {
+      _updateConnectionStatus();
     });
+  }
 
-    _connSub = Connectivity().onConnectivityChanged.listen((results) {
-      if (!mounted) return;
+  /// Mengecek apakah server API benar-benar dapat dijangkau (bukan sekadar Wi-Fi aktif).
+  Future<void> _updateConnectionStatus() async {
+    bool reachable = false;
+    try {
+      final uri = Uri.parse(ApiConfig.originUrl);
+      final port = uri.hasPort ? uri.port : (uri.scheme == 'https' ? 443 : 80);
+      final socket = await Socket.connect(
+        uri.host,
+        port,
+        timeout: const Duration(seconds: 2),
+      );
+      socket.destroy();
+      reachable = true;
+    } catch (_) {
+      reachable = false;
+    }
+
+    if (!mounted) return;
+    if (_isOnline != reachable) {
       setState(() {
-        _isOnline = results.any((r) => r != ConnectivityResult.none);
+        _isOnline = reachable;
       });
-    });
+    }
   }
 
   /// Mengambil persentase dan status pengisian daya baterai terbaru dari perangkat.

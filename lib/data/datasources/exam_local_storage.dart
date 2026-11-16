@@ -111,9 +111,14 @@ class ExamLocalStorage {
 
   // ---------------- PENDING SYNC QUEUE ----------------
 
-  /// Menandai payload pengumpulan [examId] ke antrean sinkronisasi tertunda.
+  /// Menandai payload pengumpulan [examId] ke antrean sinkronisasi tertunda
+  /// dan menutup sesi aktif lokal agar siswa tidak bisa masuk ruang soal lagi.
   Future<void> markPendingSync(int examId, Map<String, dynamic> payload) async {
     await _pendingBox.put('exam_$examId', jsonEncode(payload));
+    await _packageBox.delete('exam_$examId');
+    if (_packageBox.get('active_exam_id') == examId.toString()) {
+      await _packageBox.delete('active_exam_id');
+    }
   }
 
   /// Mengambil seluruh payload pengumpulan ujian yang masih menunggu sinkronisasi.
