@@ -6,7 +6,7 @@ class ApiConfig {
   /// Bisa juga di-override saat build/run: `--dart-define=IS_ONLINE=true`
   static const bool isOnline = bool.fromEnvironment(
     'IS_ONLINE',
-    defaultValue: false,
+    defaultValue: true,
   );
 
   /// URL server lokal / offline (127.0.0.1 untuk Windows/Web atau HP fisik via `adb reverse tcp:8000 tcp:8000`;
